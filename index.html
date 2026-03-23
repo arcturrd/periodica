@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ІНТЕРАКТИВНА ПЕРІОДИЧНА СИСТЕМА ХІМІЧНИХ ЕЛЕМЕНТІВ</title>
+    <style>
+        /* ================= БАЗОВІ СТИЛІ ================= */
+        :root {
+            --bg-color: #121212;
+            --text-color: #ffffff;
+            --cell-border: #222;
+            --accent: #00bcd4;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 15px 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            user-select: none;
+            -webkit-user-select: none;
+            min-height: 100vh;
+        }
+
+        /* Блокування скролінгу фону при відкритому модальному вікні */
+        body.modal-open {
+            overflow: hidden;
+            touch-action: none; /* Забороняє браузерні жести (напр. pull-to-refresh) */
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 5px;
+            color: var(--accent);
+            padding: 0 20px;
+        }
+
+        .main-subtitle {
+            text-align: center;
+            font-size: 1.1rem;
+            color: #aaaaaa;
+            margin-top: 0;
+            margin-bottom: 25px;
+            font-weight: 300;
+            letter-spacing: 1px;
+            padding: 0 20px;
+        }
+
+        /* ================= ЛЕГЕНДА КОЛЬОРІВ ================= */
+        .legend-wrapper {
+            grid-row: 2 / 5;       
+            grid-column: 4 / 14;   
+            position: relative;
+            margin: clamp(5px, 1vw, 15px);
+        }
+
+        .legend {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            box-sizing: border-box;
+            display: grid;
+            grid-template-columns: 1fr 1fr; 
+            grid-template-rows: repeat(5, 1fr); 
+            grid-auto-flow: column; 
+            align-content: center;
+            gap: clamp(4px, 1vw, 10px);
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+            border: 1px solid #333;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: clamp(0.7rem, 0.9vw, 1rem);
+            color: #ddd;
+            cursor: pointer;
+            transition: color 0.2s, background 0.2s;
+            padding: 3px 6px;
+            border-radius: 4px;
+        }
+        
+        .legend-item:hover {
+            color: #fff;
+            background: rgba(255,255,255,0.1);
+        }
+
+        .legend-color {
+            width: clamp(12px, 1.2vw, 18px);
+            height: clamp(12px, 1.2vw, 18px);
+            border-radius: 3px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            flex-shrink: 0;
+        }
+
+        /* ================= ТАБЛИЦЯ (GRID) ================= */
+        .table-wrapper {
+            width: 100%;
+            box-sizing: border-box;
+            overflow-x: auto; 
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* Ізоляція таблиці від дотиків під час перегляду картки */
+        .table-wrapper.modal-open {
+            overflow: hidden;
+            pointer-events: none;
+        }
+
+        .periodic-table {
+            display: grid;
+            grid-template-columns: min-content repeat(18, 1fr);
+            grid-auto-rows: max-content;
+            gap: clamp(2px, 0.4vw, 6px); 
+            width: 100%;
+            max-width: 1800px; 
+            min-width: 800px; 
+            margin: 0 auto; 
+            padding: 0 15px 20px 15px; 
+            box-sizing: border-box;
+        }
+
+        .group-label, .period-label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: clamp(0.7rem, 0.9vw, 1.1rem);
+            color: #888;
+            font-weight: bold;
+        }
+
+        .period-label {
+            justify-content: flex-end;
+            padding-right: clamp(3px, 0.5vw, 8px);
+        }
+
+        .group-label {
+            padding-bottom: 5px;
+        }
+
+        /* Клітинка таблиці */
+        .element-cell {
+            position: relative;
+            border: 1px solid var(--cell-border);
+            border-radius: clamp(3px, 0.5vw, 6px);
+            aspect-ratio: 1 / 1; 
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s, filter 0.2s, opacity 0.3s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.3);
+        }
+
+        .element-cell:hover {
+            transform: scale(1.15);
+            z-index: 10;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5), inset 0 0 10px rgba(255,255,255,0.2);
+            filter: brightness(1.2);
+            border-color: #fff;
+        }
+
+        .element-cell.highlight-dimmed {
+            opacity: 0.15;
+            filter: grayscale(80%);
+        }
+
+        .element-cell.highlight-active {
+            transform: scale(1.15);
+            z-index: 10;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.6), inset 0 0 10px rgba(255,255,255,0.4);
+            filter: brightness(1.3);
+            border-color: #fff;
+            opacity: 1;
+        }
+
+        .cell-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+            color: #ffffff;
+            text-shadow: 1px 1px 2px #000000, 0 0 5px #000000, 0 0 10px rgba(0,0,0,0.8);
+        }
+
+        .cell-content .number {
+            font-size: clamp(0.5rem, 0.75vw, 0.9rem); 
+            position: absolute;
+            top: 4%;
+            left: 6%;
+            font-weight: bold;
+            opacity: 0.85;
+        }
+
+        .cell-content .symbol {
+            font-size: clamp(0.9rem, 1.8vw, 2.4rem); 
+            font-weight: 900;
+            margin-top: 8%; 
+        }
+
+        .spacer-row {
+            grid-row: 9; 
+            grid-column: 1 / -1;
+            height: clamp(8px, 1.5vw, 15px);
+        }
+
+        /* ================= ПРИПИСКА РОЗРОБНИКА ТА ПОСИЛАННЯ ================= */
+        .developer-credit {
+            margin-top: 25px;
+            font-size: 0.85rem;
+            color: #aaaaaa;
+            text-align: center;
+            letter-spacing: 0.5px;
+            padding: 0 20px;
+            line-height: 1.5;
+        }
+
+        .developer-credit a {
+            color: var(--accent);
+            text-decoration: none;
+            font-weight: bold;
+            transition: opacity 0.2s, text-decoration 0.2s;
+        }
+
+        .developer-credit a:hover {
+            text-decoration: underline;
+            opacity: 0.8;
+        }
+
+        /* ================= МОДАЛЬНЕ ВІКНО ================= */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(0, 0, 0, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s, visibility 0.3s;
+            backdrop-filter: blur(8px);
+        }
+
+        .modal.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 20px;
+            right: 30px;
+            color: white;
+            font-size: 40px;
+            cursor: pointer;
+            z-index: 1001;
+            transition: color 0.2s;
+        }
+
+        .close-btn:hover {
+            color: var(--accent);
+        }
+
+        /* ================= 3D КАРТКА ТА ВЕРСТКА ================= */
+        .flip-card-container {
+            width: 90%;
+            max-width: 450px;
+            aspect-ratio: 1 / 1; 
+            perspective: 1000px;
+            transform: scale(0.5);
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .modal.active .flip-card-container {
+            transform: scale(1);
+        }
+
+        .flip-card {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            transition: transform 0.8s;
+            transform-style: preserve-3d;
+            cursor: pointer;
+        }
+
+        .flip-card.flipped {
+            transform: rotateY(180deg);
+        }
+
+        .flip-card-front, .flip-card-back {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            backface-visibility: hidden;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+            border: 2px solid var(--accent);
+            background-color: #1e1e1e;
+        }
+
+        .flip-card-front {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #000;
+            z-index: 2;
+        }
+
+        .flip-card-front img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            pointer-events: none; 
+            -webkit-user-drag: none;
+        }
+
+        .protect-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            background: transparent; 
+        }
+
+        .instruction-badge {
+            position: absolute;
+            top: 15px; 
+            background: rgba(0,0,0,0.7);
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            color: #fff;
+            z-index: 11;
+            pointer-events: none;
+            border: 1px solid rgba(255,255,255,0.2);
+            transition: opacity 0.3s, background-color 0.3s;
+            text-align: center;
+            max-width: 90%;
+        }
+
+        .flip-card-back {
+            transform: rotateY(180deg);
+            padding: 25px;
+            box-sizing: border-box;
+            display: flex; 
+            flex-direction: column;
+            background: linear-gradient(145deg, #2a2a2a, #1a1a1a);
+        }
+
+        .back-header {
+            border-bottom: 1px solid #444;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+            flex-shrink: 0; 
+        }
+
+        .back-title {
+            margin: 0;
+            font-size: 2rem;
+            color: var(--accent);
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+
+        .back-subtitle {
+            margin: 5px 0 0 0;
+            color: #bbb;
+            font-size: 1.1rem;
+        }
+
+        /* Обгортка створює окремий шар, щоб Android не конфліктував із 3D матрицею */
+        .back-content-wrapper {
+            flex: 1 1 auto;
+            position: relative;
+            min-height: 0;
+            width: 100%;
+        }
+
+        /* Сам текст позиціонований абсолютно для гарантованого перехоплення свайпу */
+        .back-content {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            font-size: 1.05rem;
+            line-height: 1.6;
+            color: #eee;
+            overflow-y: auto; 
+            -webkit-overflow-scrolling: touch; 
+            padding-right: 8px; /* Відступ під збільшений скролбар */
+            overscroll-behavior-y: contain; 
+            touch-action: pan-y; /* Надає жорстку вказівку ОС гортати тільки по вертикалі */
+        }
+
+        /* Збільшений скролбар для зручності на мобільних пристроях */
+        .back-content::-webkit-scrollbar { 
+            width: 12px; 
+        }
+        .back-content::-webkit-scrollbar-track { 
+            background: rgba(255, 255, 255, 0.05); /* Легка доріжка для кращої видимості зони захоплення */
+            border-radius: 6px; 
+        }
+        .back-content::-webkit-scrollbar-thumb { 
+            background: var(--accent); 
+            border-radius: 6px; 
+            border: 2px solid #222; /* Внутрішня рамка, щоб скрол виглядав гарно, але зона кліку була широкою */
+        }
+
+        /* ================= ДЕСКТОПНА ВЕРСІЯ (РОЗДІЛЕНА КАРТКА) ================= */
+        @media (min-width: 769px) {
+            .flip-card-container {
+                width: auto;
+                max-width: 100vw;
+                height: min(70vh, 550px); 
+                aspect-ratio: auto; 
+                transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+
+            .flip-card-container.desktop-expanded {
+                width: 90vw; 
+                max-width: 1400px;
+            }
+
+            .flip-card {
+                transform: none !important; 
+                display: flex;
+                width: 100%;
+                height: 100%;
+                justify-content: center;
+            }
+
+            .flip-card-front {
+                position: relative;
+                width: auto;
+                aspect-ratio: 1 / 1; 
+                height: 100%;
+                flex-shrink: 0;
+                border-radius: 15px;
+                transition: border-radius 0.4s;
+            }
+
+            .flip-card-back {
+                position: relative;
+                transform: none !important; 
+                width: 0; 
+                height: 100%;
+                opacity: 0;
+                padding: 30px 0; 
+                overflow: hidden; 
+                border-radius: 0 15px 15px 0;
+                border-left: none;
+                transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s ease 0.2s, padding 0.5s;
+            }
+
+            .flip-card-back > .back-header,
+            .flip-card-back > .back-content-wrapper {
+                min-width: 450px; 
+            }
+
+            .back-content {
+                padding-right: 15px; 
+            }
+
+            .flip-card-container.desktop-expanded .flip-card-front {
+                border-radius: 15px 0 0 15px; 
+            }
+
+            .flip-card-container.desktop-expanded .flip-card-back {
+                width: calc(100% - min(70vh, 550px)); 
+                flex-grow: 1;
+                opacity: 1;
+                padding: 30px;
+                border-left: 1px solid rgba(255,255,255,0.1);
+            }
+
+            .flip-card-container.desktop-expanded .instruction-badge {
+                opacity: 1; 
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>ІНТЕРАКТИВНА ПЕРІОДИЧНА СИСТЕМА ХІМІЧНИХ ЕЛЕМЕНТІВ</h1>
+    <p class="main-subtitle">Поширеність. Використання. Застосування</p>
+
+    <div class="table-wrapper">
+        <div id="periodic-table" class="periodic-table">
+            <!-- Легенда кольорів. Винесена в обгортку, щоб не розтягувати комірки на мобільних -->
+            <div class="legend-wrapper">
+                <div class="legend">
+                    <!-- Стовпець 1 -->
+                    <div class="legend-item" data-color="#2e7d32"><div class="legend-color" style="background: #2e7d32;"></div>Неметали</div>
+                    <div class="legend-item" data-color="#c62828"><div class="legend-color" style="background: #c62828;"></div>Лужні метали</div>
+                    <div class="legend-item" data-color="#d84315"><div class="legend-color" style="background: #d84315;"></div>Лужноземельні метали</div>
+                    <div class="legend-item" data-color="#ff8f00"><div class="legend-color" style="background: #ff8f00;"></div>Перехідні метали</div>
+                    <div class="legend-item" data-color="#ad1457"><div class="legend-color" style="background: #ad1457;"></div>Лантаноїди</div>
+                    
+                    <!-- Стовпець 2 -->
+                    <div class="legend-item" data-color="#827717"><div class="legend-color" style="background: #827717;"></div>Актиноїди</div>
+                    <div class="legend-item" data-color="#1565c0"><div class="legend-color" style="background: #1565c0;"></div>Постперехідні метали</div>
+                    <div class="legend-item" data-color="#00695c"><div class="legend-color" style="background: #00695c;"></div>Металоїди</div>
+                    <div class="legend-item" data-color="#00838f"><div class="legend-color" style="background: #00838f;"></div>Галогени</div>
+                    <div class="legend-item" data-color="#6a1b9a"><div class="legend-color" style="background: #6a1b9a;"></div>Благородні гази</div>
+                </div>
+            </div>
+
+            <!-- Клітинки та нумерація будуть згенеровані тут за допомогою JavaScript -->
+        </div>
+    </div>
+    
+    <div class="developer-credit">
+        ©️ Розробник Ростислав Долгіх ✉️ arctur.rd@gmail.com | Всі картинки можна <a href="https://vseosvita.ua/library/khimichni-elementy-u-kartynkakh-118-elementiv-1106910.html" target="_blank" rel="noopener noreferrer">завантажити тут</a>
+    </div>
+
+    <!-- Модальне вікно з карткою -->
+    <div id="element-modal" class="modal">
+        <span class="close-btn" id="close-modal">&times;</span>
+        
+        <div class="flip-card-container" id="flip-container">
+            <div class="flip-card" id="flip-card">
+                <!-- Передня частина (Картинка) -->
+                <div class="flip-card-front" id="flip-front">
+                    <img id="card-img" src="" alt="Element Image">
+                    <div class="protect-overlay"></div>
+                    <div class="instruction-badge" id="instruction-badge">Клікніть, щоб переглянути</div>
+                </div>
+                
+                <!-- Задня частина (Текст) -->
+                <div class="flip-card-back" id="flip-back">
+                    <div class="back-header">
+                        <h2 class="back-title" id="card-title">Назва</h2>
+                        <p class="back-subtitle" id="card-subtitle">Символ - Атомний номер</p>
+                    </div>
+                    <div class="back-content-wrapper">
+                        <div class="back-content" id="card-info">
+                            Тут буде інформація...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="data.js"></script>
+    <script>
+        // ================= ЗАХИСТ ВІД КОПІЮВАННЯ ТА DEVTOOLS =================
+        document.addEventListener('contextmenu', event => event.preventDefault());
+        document.addEventListener('dragstart', event => event.preventDefault());
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey && (e.key === 's' || e.key === 'S')) e.preventDefault();
+            if (e.key === 'F12' || 
+               (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'i' || e.key === 'J' || e.key === 'j' || e.key === 'C' || e.key === 'c')) ||
+               (e.ctrlKey && (e.key === 'U' || e.key === 'u'))) {
+                e.preventDefault();
+            }
+        });
+
+        // ================= НАЛАШТУВАННЯ КАРТИНОК ТА ДАНИХ =================
+        const imageFolder = 'images/';
+        const imageExtension = '.png'; 
+        let currentElementZ = 1; 
+
+        function getElementColor(z) {
+            if ([1, 6, 7, 8, 15, 16, 34].includes(z)) return "#2e7d32";
+            if ([2, 10, 18, 36, 54, 86, 118].includes(z)) return "#6a1b9a";
+            if ([3, 11, 19, 37, 55, 87].includes(z)) return "#c62828";
+            if ([4, 12, 20, 38, 56, 88].includes(z)) return "#d84315";
+            if ([9, 17, 35, 53, 85, 117].includes(z)) return "#00838f";
+            if ([5, 14, 32, 33, 51, 52, 84].includes(z)) return "#00695c";
+            if ([13, 31, 49, 50, 81, 82, 83, 113, 114, 115, 116].includes(z)) return "#1565c0";
+            if (z >= 57 && z <= 71) return "#ad1457";
+            if (z >= 89 && z <= 103) return "#827717";
+            return "#ff8f00";
+        }
+
+        const tableContainer = document.getElementById('periodic-table');
+
+        // Додаємо номери ГРУП (1-18) у верхній рядок
+        for (let i = 1; i <= 18; i++) {
+            const label = document.createElement('div');
+            label.className = 'group-label';
+            label.textContent = i;
+            label.style.gridRow = 1;
+            label.style.gridColumn = i + 1; 
+            tableContainer.appendChild(label);
+        }
+
+        // Додаємо номери ПЕРІОДІВ (1-7) у лівий стовпець
+        for (let i = 1; i <= 7; i++) {
+            const label = document.createElement('div');
+            label.className = 'period-label';
+            label.textContent = i;
+            label.style.gridRow = i + 1; 
+            label.style.gridColumn = 1;
+            tableContainer.appendChild(label);
+        }
+
+        function getGridPosition(z) {
+            let r, c;
+            if (z === 1) { r = 1; c = 1; }
+            else if (z === 2) { r = 1; c = 18; }
+            else if (z >= 3 && z <= 10) { r = 2; c = z <= 4 ? z - 2 : z + 8; }
+            else if (z >= 11 && z <= 18) { r = 3; c = z <= 12 ? z - 10 : z; }
+            else if (z >= 19 && z <= 36) { r = 4; c = z - 18; }
+            else if (z >= 37 && z <= 54) { r = 5; c = z - 36; }
+            else if (z >= 55 && z <= 86) {
+                if (z <= 56) { r = 6; c = z - 54; }
+                else if (z >= 57 && z <= 71) { r = 9; c = z - 53; }
+                else if (z >= 72) { r = 6; c = z - 68; }
+            }
+            else if (z >= 87 && z <= 118) {
+                if (z <= 88) { r = 7; c = z - 86; }
+                else if (z >= 89 && z <= 103) { r = 10; c = z - 85; }
+                else if (z >= 104) { r = 7; c = z - 100; }
+            }
+            else { r = 1; c = 1; }
+
+            return { row: r + 1, col: c + 1 };
+        }
+
+        for (let z = 1; z <= 118; z++) {
+            const pos = getGridPosition(z);
+            const data = (typeof elementsData !== 'undefined' && elementsData[z]) ? elementsData[z] : { sym: "?", name: "Невідомо", info: "Немає даних" };
+            
+            const bgColor = data.color ? data.color : getElementColor(z);
+
+            const cell = document.createElement('div');
+            cell.className = 'element-cell';
+            cell.style.gridRow = pos.row;
+            cell.style.gridColumn = pos.col;
+            cell.style.backgroundColor = bgColor;
+            cell.dataset.z = z;
+            cell.dataset.groupColor = bgColor; 
+
+            cell.innerHTML = `
+                <div class="cell-content">
+                    <span class="number">${z}</span>
+                    <span class="symbol">${data.sym}</span>
+                </div>
+            `;
+
+            tableContainer.appendChild(cell);
+            cell.addEventListener('click', () => openModal(z));
+        }
+
+        const spacer = document.createElement('div');
+        spacer.className = 'spacer-row';
+        tableContainer.appendChild(spacer);
+
+        // ================= ЛОГІКА ПІДСВІЧУВАННЯ ГРУП (ЛЕГЕНДА) =================
+        const legendItems = document.querySelectorAll('.legend-item');
+        const allCells = document.getElementsByClassName('element-cell');
+
+        legendItems.forEach(item => {
+            const groupColor = item.getAttribute('data-color');
+
+            const highlightElements = (e) => {
+                if(e.type === 'touchstart') e.preventDefault(); 
+                Array.from(allCells).forEach(cell => {
+                    if (cell.dataset.groupColor === groupColor) {
+                        cell.classList.add('highlight-active');
+                        cell.classList.remove('highlight-dimmed');
+                    } else {
+                        cell.classList.add('highlight-dimmed');
+                        cell.classList.remove('highlight-active');
+                    }
+                });
+            };
+
+            const resetElements = () => {
+                Array.from(allCells).forEach(cell => {
+                    cell.classList.remove('highlight-active', 'highlight-dimmed');
+                });
+            };
+
+            item.addEventListener('mouseenter', highlightElements);
+            item.addEventListener('mouseleave', resetElements);
+            item.addEventListener('touchstart', highlightElements, {passive: false});
+            item.addEventListener('touchend', resetElements);
+            item.addEventListener('touchcancel', resetElements);
+        });
+
+        // ================= ЛОГІКА МОДАЛЬНОГО ВІКНА =================
+        const modal = document.getElementById('element-modal');
+        const flipContainer = document.getElementById('flip-container');
+        const flipCard = document.getElementById('flip-card');
+        const flipFront = document.getElementById('flip-front');
+        const flipBack = document.getElementById('flip-back');
+        const closeModalBtn = document.getElementById('close-modal');
+        const tableWrapper = document.querySelector('.table-wrapper');
+        
+        const cardImg = document.getElementById('card-img');
+        const cardTitle = document.getElementById('card-title');
+        const cardSubtitle = document.getElementById('card-subtitle');
+        const cardInfo = document.getElementById('card-info');
+        const instructionBadge = document.getElementById('instruction-badge');
+
+        function updateModalContent(z) {
+            currentElementZ = z;
+            const data = (typeof elementsData !== 'undefined' && elementsData[z]) ? elementsData[z] : { sym: "?", name: "Невідомо", info: "Немає даних" };
+            const imagePath = `${imageFolder}element-${z}${imageExtension}`;
+
+            cardImg.src = imagePath;
+            cardImg.onerror = function() { 
+                console.warn('Не вдалося завантажити картинку: ' + imagePath);
+                this.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" fill="%231a1a1a"><rect width="100%" height="100%"/><text x="50%" y="50%" font-size="20" fill="white" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle">Картинка відсутня</text></svg>'; 
+            };
+            
+            cardTitle.textContent = data.name;
+            cardSubtitle.textContent = `Символ: ${data.sym} | Атомний номер: ${z}`;
+            cardInfo.innerHTML = data.info;
+        }
+
+        function openModal(z) {
+            updateModalContent(z);
+            instructionBadge.textContent = "Клікніть, щоб переглянути";
+            flipCard.classList.remove('flipped');
+            flipContainer.classList.remove('desktop-expanded'); 
+            
+            // Жорстке блокування заднього фону для мобільних пристроїв
+            document.body.classList.add('modal-open');
+            tableWrapper.classList.add('modal-open');
+            
+            modal.classList.add('active');
+        }
+
+        function closeModal() {
+            modal.classList.remove('active');
+            
+            // Зняття блокування фону
+            document.body.classList.remove('modal-open');
+            tableWrapper.classList.remove('modal-open');
+
+            setTimeout(() => {
+                flipCard.classList.remove('flipped');
+                flipContainer.classList.remove('desktop-expanded');
+                cardImg.src = ''; 
+            }, 300);
+        }
+
+        flipFront.addEventListener('click', (e) => {
+            e.stopPropagation(); 
+            const isDesktop = window.innerWidth >= 769;
+
+            if (isDesktop) {
+                if (!flipContainer.classList.contains('desktop-expanded')) {
+                    flipContainer.classList.add('desktop-expanded');
+                    instructionBadge.textContent = "Переглянути наступний елемент";
+                } else {
+                    flipContainer.classList.remove('desktop-expanded');
+                    instructionBadge.textContent = "Клікніть, щоб переглянути";
+                    
+                    let nextZ = currentElementZ + 1;
+                    if (nextZ > 118) nextZ = 1; 
+                    
+                    setTimeout(() => {
+                        updateModalContent(nextZ);
+                    }, 250); 
+                }
+            } else {
+                flipCard.classList.add('flipped'); 
+            }
+        });
+
+        // Перешкоджаємо закриттю/пролистуванню на десктопі при кліку на задню картку
+        flipBack.addEventListener('click', (e) => {
+            if (window.innerWidth >= 769) {
+                e.stopPropagation(); 
+            }
+        });
+
+        // БЛОКУВАННЯ небажаних скролів на мобільних пристроях.
+        // Забороняє будь-яке проведення пальцем на екрані модалки, ОКРІМ самого поля тексту.
+        modal.addEventListener('touchmove', (e) => {
+            if (!e.target.closest('.back-content')) {
+                e.preventDefault();
+            }
+        }, { passive: false });
+
+        // Зупинка поширення кліку, щоб уникнути конфліктів скролу і випадкових перевертань
+        cardInfo.addEventListener('click', (e) => e.stopPropagation());
+
+        closeModalBtn.addEventListener('click', closeModal);
+
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeModal();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && modal.classList.contains('active')) closeModal();
+        });
+
+    </script>
+</body>
+</html>
